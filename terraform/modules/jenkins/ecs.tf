@@ -4,8 +4,8 @@ resource "aws_ecs_cluster" "jenkins" {
 
 resource "aws_ecs_task_definition" "jenkins_root" {
   family                   = "jenkins-root-task"
-  cpu                      = 512
-  memory                   = 1024
+  cpu                      = 2048
+  memory                   = 4096
   network_mode             = "awsvpc"
   task_role_arn            = aws_iam_role.jenkins.arn
   execution_role_arn       = aws_iam_role.jenkins-execution.arn
@@ -35,6 +35,15 @@ resource "aws_ecs_task_definition" "jenkins_root" {
             "awslogs-stream-prefix" = "jenkins"
           }
         }
+        environment = [
+          { "name" : "KANIKO_CLUSTER_NAME", "value" : aws_ecs_cluster.jenkins.name },
+          { "name" : "KANIKO_SUBNET_ID", "value" : var.private_subnets[0] },
+          { "name" : "KANIKO_SECURITY_GROUP_ID", "value" : aws_security_group.kaniko.id },
+          { "name" : "KANIKO_BUILD_CONTEXT_BUCKET_NAME", "value" : aws_s3_bucket.kaniko-context.id },
+          { "name" : "KANIKO_REPOSITORY_URI", "value" : aws_ecr_repository.app-repository.repository_url },
+          { "name" : "KANIKO_ECS_FAMILY", "value" : aws_ecs_task_definition.kaniko.family },
+          { "name" : "KANIKO_JENKINS_CLUSTER_NAME", "value" : aws_ecs_cluster.jenkins.name },
+        ]
       }
     ]
   )

@@ -1,8 +1,4 @@
-variable "jenkins_image" {
-  type = string
-}
-
-variable "kaniko_image" {
+variable "app_image" {
   type = string
 }
 
