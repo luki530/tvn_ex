@@ -82,115 +82,32 @@ resource "aws_ecs_service" "jenkins" {
   }
 }
 
-resource "aws_lb_target_group" "jenkins-tg" {
-  name = "jenkins-tg"
-  health_check {
-    path = "/login"
-  }
-  port                 = 8080
-  protocol             = "HTTP"
-  target_type          = "ip"
-  vpc_id               = var.vpc_id
-  deregistration_delay = 10
-}
-
-resource "aws_security_group" "jenkins-ecs" {
-  vpc_id = var.vpc_id
-}
-
-resource "aws_security_group_rule" "ecs-ingress" {
-  security_group_id        = aws_security_group.jenkins-ecs.id
-  type                     = "ingress"
-  protocol                 = "TCP"
-  from_port                = 8080
-  to_port                  = 8080
-  source_security_group_id = aws_security_group.jenkins-lb.id
-}
-
-resource "aws_security_group" "jenkins-lb" {
-  vpc_id = var.vpc_id
-}
-
-resource "aws_security_group_rule" "lb-ingress" {
-  security_group_id = aws_security_group.jenkins-lb.id
-  type              = "ingress"
-  protocol          = "TCP"
-  from_port         = 80
-  to_port           = 80
-  cidr_blocks       = ["89.64.36.196/32"]
-}
-
-resource "aws_security_group_rule" "lb-egress" {
-  security_group_id        = aws_security_group.jenkins-lb.id
-  type                     = "egress"
-  protocol                 = "TCP"
-  from_port                = 8080
-  to_port                  = 8080
-  source_security_group_id = aws_security_group.jenkins-ecs.id
-}
-
-resource "aws_cloudwatch_log_group" "jenkins-cw" {
-  name              = "jenkins-ecs"
-  retention_in_days = 14
-}
-
-resource "aws_lb" "jenkins-alb" {
-  subnets         = var.public_subnets
-  security_groups = [aws_security_group.jenkins-lb.id]
-}
-
-resource "aws_lb_listener" "alb-listener" {
-  default_action {
-    type = "forward"
-    forward {
-      target_group {
-        arn = aws_lb_target_group.jenkins-tg.arn
+resource "aws_ecs_task_definition" "kaniko" {
+  family                   = "kaniko-builder"
+  cpu                      = 512
+  memory                   = 1024
+  task_role_arn            = aws_iam_role.kaniko.arn
+  execution_role_arn       = aws_iam_role.kaniko-execution.arn
+  requires_compatibilities = ["FARGATE", "EC2"]
+  network_mode             = "awsvpc"
+  container_definitions = jsonencode(
+    [
+      {
+        name  = "kaniko-builder"
+        image = var.kaniko_image
+        logConfiguration = {
+          "logDriver" = "awslogs"
+          "options" = {
+            "awslogs-group"         = aws_cloudwatch_log_group.jenkins-cw.id
+            "awslogs-region"        = data.aws_region.current.name
+            "awslogs-stream-prefix" = "kaniko"
+          }
+        }
+        environment = [
+          { "name" : "AWS_SDK_LOAD_CONFIG", "value" : "true" },
+          { "name" : "AWS_EC2_METADATA_DISABLED", "value" : "true" },
+        ]
       }
-    }
-  }
-  load_balancer_arn = aws_lb.jenkins-alb.arn
-  port              = 80
-  protocol          = "HTTP"
-}
-resource "aws_efs_file_system" "fs" {
-  encrypted = true
-  tags = {
-    "Name" = "jenkins-home"
-  }
-}
-
-resource "aws_efs_mount_target" "efs-mt" {
-  for_each        = toset(var.private_subnets)
-  file_system_id  = aws_efs_file_system.fs.id
-  subnet_id       = each.value
-  security_groups = [aws_security_group.efs-sg.id]
-}
-
-resource "aws_efs_access_point" "efs-ap" {
-  file_system_id = aws_efs_file_system.fs.id
-  posix_user {
-    uid = 1000
-    gid = 1000
-  }
-  root_directory {
-    creation_info {
-      owner_gid   = 1000
-      owner_uid   = 1000
-      permissions = 755
-    }
-    path = "/jenkins-home"
-  }
-}
-
-resource "aws_security_group" "efs-sg" {
-  vpc_id = var.vpc_id
-}
-
-resource "aws_security_group_rule" "efs-ingress" {
-  security_group_id        = aws_security_group.efs-sg.id
-  type                     = "ingress"
-  protocol                 = "TCP"
-  from_port                = 2049
-  to_port                  = 2049
-  source_security_group_id = aws_security_group.jenkins-ecs.id
+    ]
+  )
 }

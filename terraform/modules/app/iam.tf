@@ -17,25 +17,6 @@ resource "aws_iam_role" "java-app" {
   )
 }
 
-resource "aws_iam_role_policy" "java-app" {
-  name = "java-app-policy"
-  role = aws_iam_role.java-app.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        "Action" : [
-          "ecr:BatchGetImage",
-          "ecr:GetDownloadUrlForLayer",
-          "ecr:GetAuthorizationToken"
-        ]
-        Effect   = "Allow"
-        Resource = "*"
-      }
-    ]
-  })
-}
-
 resource "aws_iam_role" "java-app-execution" {
   name = "java-app-execution-role"
   assume_role_policy = jsonencode(

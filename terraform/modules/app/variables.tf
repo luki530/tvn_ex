@@ -2,6 +2,10 @@ variable "app_image" {
   type = string
 }
 
+variable "ecr_arn" {
+  type = string
+}
+
 variable "vpc_id" {
   type = string
 }

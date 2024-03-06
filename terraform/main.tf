@@ -28,7 +28,8 @@ module "jenkins" {
 module "app" {
   source = "./modules/app"
 
-  app_image       = "891377188928.dkr.ecr.eu-central-1.amazonaws.com/app-repository:latest"
+  app_image       = format("%s:latest", module.jenkins.ecr_url)
+  ecr_arn         = module.jenkins.ecr_arn
   vpc_id          = module.vpc.vpc_id
   private_subnets = module.vpc.private_subnets
   public_subnets  = module.vpc.public_subnets
